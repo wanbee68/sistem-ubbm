@@ -1,44 +1,57 @@
-# Sistem UBBM
+# Sistem Markah UBBM
 
-## 🚀 How to Deploy to GitHub Pages (Foolproof Guide)
+## 🚀 How to Deploy to GitHub Pages (The Right Way)
 
-If you are seeing errors like "Personal Access Token" or "main cannot be resolved", follow these steps exactly.
+The reason your workflow isn't running is likely because **you deleted it** from GitHub when you used `git push --force`. 
 
-### Step 1: Prepare your Local Folder
-1. Download this project as a ZIP from AI Studio (**Settings > Export > ZIP**) and extract it.
-2. Open your terminal (Command Prompt or PowerShell) inside that extracted folder.
-3. **IMPORTANT:** Delete the `.github` folder if it exists in your local folder for now. We will add the workflow later via the GitHub website to avoid the "Personal Access Token" error.
+### Step 1: Get the Workflow File Properly
+1. Go to your repository at `https://github.com/wanbee68/sistem-ubbm`.
+2. check if `.github/workflows/deploy.yml` exists. If not, **create it again** via the web interface (Add file > Create new file).
+3. Copy the workflow code from **AI Studio's README** into that file.
 
-### Step 2: Push Your Code to GitHub
-Run these commands one by one:
+### Step 2: Sync your VS Code with GitHub
+If you have code in VS Code that you want to push, but don't want to delete the workflow file on GitHub:
 ```bash
-# 1. Initialize Git
-git init
+# 1. First, "pull" the workflow file from GitHub to your VS Code
+git pull origin main --rebase
 
-# 2. Add files
-git add .
-
-# 3. Commit files (This fixes "main cannot be resolved")
-git commit -m "Initialize project"
-
-# 4. Rename branch to main
-git branch -M main
-
-# 5. Connect to your GitHub repo
-# Replace 'wanbee68' if your username is different
-git remote add origin https://github.com/wanbee68/sistem-ubbm
-
-# 6. Push code (Force push to ensure a clean start)
-git push -u origin main --force
+# 2. Now you have the .github folder locally! 
+# 3. Try to push normally
+git push origin main
 ```
 
-### Step 3: Add the Deployment Workflow (Via GitHub Website)
-This avoids the Permission/Scope error you saw earlier.
-1. Go to your repository at `https://github.com/wanbee68/sistem-ubbm`.
-2. Click **Add file** > **Create new file**.
-3. Path: `.github/workflows/deploy.yml`
-4. Copy and paste code below into the file:
+### 🛑 If you get a "Workflow Scope" error when pushing:
+If VS Code says: `refusing to allow an OAuth App to create or update workflow...`:
+1. **DO NOT DELETE** the `.github` folder.
+2. Instead, rename your local folder `.github` to something else (like `_temp_github`) temporarily.
+3. Push your code: `git add .`, `git commit`, `git push`.
+4. The workflow file **already on GitHub** will remain safe and will trigger the build!
 
+### Step 3: Check if it's working
+1. On GitHub, click the **Actions** tab.
+2. You should see a yellow dot or green checkmark next to "Deploy to GitHub Pages".
+3. If it's red (failed), click it to see why.
+4. **Settings > Pages**: Make sure "Source" is set to **GitHub Actions**.
+
+### Step 4: Firebase Authorized Domains
+1. Go to [Firebase Console](https://console.firebase.google.com/).
+2. **Authentication > Settings > Authorized domains**.
+3. Add `wanbee68.github.io`.
+
+---
+
+## 🛠 Troubleshooting Common Errors
+
+### "Updates were rejected... fetch first"
+This means GitHub has files (like the workflow) that you don't have. 
+*   **Fix:** Run `git pull origin main --rebase`.
+
+### "The site's title doesn't change"
+1. Make sure you edited `<title>` in `index.html`.
+2. Check the **Actions** tab on GitHub. If the workflow didn't run, the site won't update.
+3. Clear your browser cache or open the site in **Incognito/Private mode**.
+
+## Workflow Code (Save as .github/workflows/deploy.yml)
 ```yaml
 name: Deploy to GitHub Pages
 on:
@@ -65,25 +78,3 @@ jobs:
           path: './dist'
       - uses: actions/deploy-pages@v4
 ```
-5. Click **Commit changes**.
-
-### Step 4: Final Settings
-1. On your GitHub repo: **Settings > Pages**.
-2. **Build and deployment > Source**: Change to **GitHub Actions**.
-3. **Firebase Setup:** Go to [Firebase Console](https://console.firebase.google.com/) > Authentication > Settings > Authorized domains. Add `wanbee68.github.io`.
-
----
-
-## 🛠 Troubleshooting Common Errors
-
-### "Personal Access Token ... without workflow scope"
-This happens because your local Git login doesn't have permission to upload "Workflow" files.
-*   **Fix:** Follow **Step 1** and **Step 3** above (push without the `.github` folder, then add it via the web).
-
-### "fatal: main cannot be resolved to branch"
-This means you haven't "committed" your changes yet.
-*   **Fix:** Run `git commit -m "Initial commit"` before you try to push.
-
-### "Insufficent permissions to create the GitHub repository" (In AI Studio)
-The AI Studio "Export to GitHub" feature needs extra permissions.
-*   **Fix:** Manual upload (Steps 1-4 above) is the most reliable way.
