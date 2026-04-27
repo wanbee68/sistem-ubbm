@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "UBBMRecord": {
+      "title": "UBBM Record",
+      "description": "Markah Ujian Bertutur Bahasa Melayu record for a session.",
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "jenisUjian": { "type": "string" },
+            "namaMaktab": { "type": "string" },
+            "sidang": { "type": "string" },
+            "tarikhMasa": { "type": "string" },
+            "pemeriksaNama": { "type": "string" },
+            "pemeriksaJawatan": { "type": "string" },
+            "penyemakNama": { "type": "string" },
+            "penyemakJawatan": { "type": "string" },
+            "pengesahNama": { "type": "string" },
+            "pengesahJawatan": { "type": "string" },
+            "tarikhSemak": { "type": "string" },
+            "tarikhSah": { "type": "string" },
+            "tarikhSimpan": { "type": "string" },
+            "masaSimpan": { "type": "string" }
+          }
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "nama": { "type": "string" },
+              "jantina": { "type": "string" },
+              "noMaktab": { "type": "string" },
+              "homeroom": { "type": "string" },
+              "tingkatan": { "type": "string" },
+              "kelas": { "type": "string" },
+              "analitik": {
+                "type": "object",
+                "properties": {
+                  "tatabahasa": { "type": "number" },
+                  "sebutan": { "type": "number" },
+                  "kefasihan": { "type": "number" },
+                  "idea": { "type": "number" }
+                }
+              },
+              "holistik": { "type": "number" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["header", "candidates", "createdAt", "userId"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student information in the database.",
+      "type": "object",
+      "properties": {
+        "nama": { "type": "string" },
+        "noMaktab": { "type": "string" },
+        "homeroom": { "type": "string" },
+        "tingkatan": { "type": "string" },
+        "kelas": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["nama", "noMaktab", "userId"]
+    }
+  },
+  "firestore": {
+    "artifacts/ubbm-system-2026/public/data/ubbm_records": {
+      "schema": "UBBMRecord",
+      "description": "Collection of all UBBM mark records."
+    },
+    "artifacts/ubbm-system-2026/public/data/student_database": {
+      "schema": "Student",
+      "description": "Collection of all student information for lookups."
+    }
+  }
+}

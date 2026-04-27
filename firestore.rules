@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(data) {
+      return isSignedIn() && data.userId == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation helper for UBBM Record
+    function isValidUBBMRecord(data) {
+      return data.keys().hasAll(['header', 'candidates', 'createdAt', 'userId'])
+        && data.header is map
+        && data.candidates is list
+        && data.candidates.size() <= 5
+        && data.createdAt is string
+        && data.userId == request.auth.uid
+        && data.header.keys().hasAll(['jenisUjian', 'sidang', 'tarikhMasa'])
+        && data.header.jenisUjian is string
+        && data.header.jenisUjian.size() <= 100
+        && data.header.sidang is string
+        && data.header.sidang.size() <= 10
+        && data.header.tarikhMasa is string
+        && data.header.tarikhMasa.size() <= 100;
+    }
+
+    // --- Collection: UBBM Records ---
+    match /artifacts/{appId}/public/data/ubbm_records/{recordId} {
+      // Secure List Queries: The rule itself must validate the resource being queried.
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isOwner(existing());
+      
+      allow create: if isSignedIn()
+        && isValidId(appId)
+        && isValidUBBMRecord(incoming());
+        // Note: Using request.time for createdAt is ideal but user code sends ISO string.
+        // We'll trust the schema check for now or enforce sync if possible.
+        
+      allow update: if false; // Application primarily creates new records or deletes.
+      
+      allow delete: if isOwner(existing());
+    }
+
+    // --- Collection: Student Database ---
+    match /artifacts/{appId}/public/data/student_database/{studentId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isOwner(existing());
+      
+      allow create: if isSignedIn()
+        && isValidId(appId)
+        && incoming().userId == request.auth.uid;
+        
+      allow update: if isOwner(existing())
+        && incoming().userId == request.auth.uid;
+      
+      allow delete: if isOwner(existing());
+    }
+  }
+}
