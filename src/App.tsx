@@ -27,7 +27,7 @@ import {
   Save, Printer, Trash2, FileText, History, 
   UserCheck, ShieldCheck, Search, Eye,
   PenTool, CheckCircle2, ListChecks, Upload, X,
-  BookOpen, HelpCircle, ChevronRight, Info
+  BookOpen, HelpCircle, ChevronRight, Info, ArrowUpDown
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -487,6 +487,25 @@ const App = () => {
     }
   };
 
+  const sortActiveCandidates = () => {
+    const sorted = [...candidates].sort((a, b) => {
+      if (!a.nama && b.nama) return 1;
+      if (a.nama && !b.nama) return -1;
+      if (!a.nama && !b.nama) return 0;
+      const lvlA = String(a.tingkatan || "").toUpperCase();
+      const lvlB = String(b.tingkatan || "").toUpperCase();
+      if (lvlA !== lvlB) return lvlA.localeCompare(lvlB, undefined, { numeric: true });
+      const clsA = String(a.kelas || "").toUpperCase();
+      const clsB = String(b.kelas || "").toUpperCase();
+      if (clsA !== clsB) return clsA.localeCompare(clsB);
+      const nameA = String(a.nama || "").toUpperCase();
+      const nameB = String(b.nama || "").toUpperCase();
+      return nameA.localeCompare(nameB);
+    });
+    setCandidates(sorted);
+    showToast("Senarai calon disusun", "info");
+  };
+
   const generateIndukPDF = async () => {
     if (!isPdfReady || isGeneratingPdf) return;
     if (records.length === 0) {
@@ -511,7 +530,19 @@ const App = () => {
         return;
       }
 
-      all.sort((a,b) => (String(a.tingkatan)+String(a.kelas)).localeCompare(String(b.tingkatan)+String(b.kelas)));
+      all.sort((a, b) => {
+        const lvlA = String(a.tingkatan || "").toUpperCase();
+        const lvlB = String(b.tingkatan || "").toUpperCase();
+        if (lvlA !== lvlB) return lvlA.localeCompare(lvlB, undefined, { numeric: true });
+
+        const clsA = String(a.kelas || "").toUpperCase();
+        const clsB = String(b.kelas || "").toUpperCase();
+        if (clsA !== clsB) return clsA.localeCompare(clsB);
+
+        const nameA = String(a.nama || "").toUpperCase();
+        const nameB = String(b.nama || "").toUpperCase();
+        return nameA.localeCompare(nameB);
+      });
 
       autoTable(doc, {
           startY: 30,
@@ -1589,6 +1620,13 @@ const App = () => {
                   className="flex items-center gap-3 px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-black uppercase active:scale-95 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ListChecks size={20}/> Jana Markah Induk
+                </button>
+                <button 
+                  onClick={sortActiveCandidates}
+                  className="flex items-center gap-3 px-8 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 font-black uppercase active:scale-95 transition-all shadow-xl"
+                  title="Susun Calon Mengikut Tingkatan, Kelas & Nama"
+                >
+                  <ArrowUpDown size={20}/> Susun Senarai
                 </button>
                 <button 
                   type="button"
