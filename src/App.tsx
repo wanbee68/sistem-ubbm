@@ -25,8 +25,9 @@ import {
 } from 'firebase/auth';
 import { 
   Save, Printer, Trash2, FileText, History, 
-  UserCheck, ShieldCheck, Search,
-  PenTool, CheckCircle2, ListChecks, Upload, X
+  UserCheck, ShieldCheck, Search, Eye,
+  PenTool, CheckCircle2, ListChecks, Upload, X,
+  BookOpen, HelpCircle, ChevronRight, Info
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -117,6 +118,32 @@ interface Candidate {
   holistik: string | number;
 }
 
+const INITIAL_HEADER = {
+    jenisUjian: JENIS_UJIAN_OPTIONS[0],
+    namaMaktab: 'MAKTAB RENDAH SAINS MARA ',
+    sidang: '1',
+    tarikhMasa: '',
+    pemeriksaNama: '',
+    pemeriksaJawatan: 'Guru Bahasa Melayu',
+    penyemakNama: '',
+    penyemakJawatan: 'Ketua Jabatan Bahasa',
+    pengesahNama: '',
+    pengesahJawatan: 'Timbalan Pengetua Kecemerlangan Akademik',
+    tarikhSemak: new Date().toLocaleDateString('ms-MY'),
+    tarikhSah: new Date().toLocaleDateString('ms-MY')
+};
+
+const emptyCandidate = (): Candidate => ({
+  nama: '',
+  jantina: 'L',
+  noMaktab: '',
+  homeroom: '',
+  tingkatan: '1',
+  kelas: 'AMANAH',
+  analitik: { tatabahasa: '', sebutan: '', kefasihan: '', idea: '' },
+  holistik: ''
+});
+
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,69 +158,75 @@ const App = () => {
   const [isSavingDb, setIsSavingDb] = useState(false);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [isPdfReady, setIsPdfReady] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '' });
-  const [searchModal, setSearchModal] = useState<{show: boolean, targetIdx: number | null, term: string}>({ show: false, targetIdx: null, term: '' });
+  const [isPdfReady, setIsPdfReady] = useState(true);
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText: string;
+    variant: 'danger' | 'warning' | 'info';
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    confirmText: 'Teruskan',
+    variant: 'info'
+  });
+  const [showManual, setShowManual] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [searchModal, setSearchModal] = useState<{show: boolean, targetIdx: number | null, term: string, tingkatan?: string, kelas?: string}>({ show: false, targetIdx: null, term: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form State
-  const [header, setHeader] = useState({
-    jenisUjian: JENIS_UJIAN_OPTIONS[0],
-    namaMaktab: 'MAKTAB RENDAH SAINS MARA ',
-    sidang: '1',
-    tarikhMasa: '',
-    pemeriksaNama: '',
-    pemeriksaJawatan: 'Guru Bahasa Melayu',
-    penyemakNama: '',
-    penyemakJawatan: 'Ketua Jabatan Bahasa',
-    pengesahNama: '',
-    pengesahJawatan: 'Timbalan Pengetua Kecemerlangan Akademik',
-    tarikhSemak: new Date().toLocaleDateString('ms-MY'),
-    tarikhSah: new Date().toLocaleDateString('ms-MY')
-  });
-
-  const emptyCandidate = (): Candidate => ({
-    nama: '',
-    jantina: 'L',
-    noMaktab: '',
-    homeroom: '',
-    tingkatan: '1',
-    kelas: 'AMANAH',
-    analitik: { tatabahasa: '', sebutan: '', kefasihan: '', idea: '' },
-    holistik: ''
-  });
+  const [header, setHeader] = useState(INITIAL_HEADER);
 
   const [candidates, setCandidates] = useState<Candidate[]>(Array(5).fill(null).map(emptyCandidate));
 
   // --- LOGIK KEMASUKAN MARKAH ---
 
   const handleAnalitikChange = (idx: number, field: keyof Candidate['analitik'], val: string) => {
+    const newCandidates = [...candidates];
+    const candidate = { ...newCandidates[idx] };
+    const analitik = { ...candidate.analitik };
+
     if (val === '') {
-      const newCandidates = [...candidates];
-      newCandidates[idx].analitik[field] = '';
+      analitik[field] = '';
+      candidate.analitik = analitik;
+      newCandidates[idx] = candidate;
       setCandidates(newCandidates);
       return;
     }
+
     let num = parseInt(val);
     if (isNaN(num)) return;
     num = Math.max(0, Math.min(10, num));
-    const newCandidates = [...candidates];
-    newCandidates[idx].analitik[field] = num;
+    
+    analitik[field] = num;
+    candidate.analitik = analitik;
+    newCandidates[idx] = candidate;
     setCandidates(newCandidates);
   };
 
   const handleHolistikChange = (idx: number, val: string) => {
+    const newCandidates = [...candidates];
+    const candidate = { ...newCandidates[idx] };
+
     if (val === '') {
-      const newCandidates = [...candidates];
-      newCandidates[idx].holistik = '';
+      candidate.holistik = '';
+      newCandidates[idx] = candidate;
       setCandidates(newCandidates);
       return;
     }
+
     let num = parseInt(val);
     if (isNaN(num)) return;
     num = Math.max(0, Math.min(30, num));
-    const newCandidates = [...candidates];
-    newCandidates[idx].holistik = num;
+    
+    candidate.holistik = num;
+    newCandidates[idx] = candidate;
     setCandidates(newCandidates);
   };
 
@@ -270,16 +303,62 @@ const App = () => {
 
   // --- UTILITI SISTEM ---
 
-  const showToast = (msg: string) => {
-    setNotification({ show: true, message: String(msg) });
-    setTimeout(() => setNotification({ show: false, message: '' }), 4000);
+  const showToast = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setNotification({ show: true, message: String(msg), type });
+    setTimeout(() => setNotification({ show: false, message: '', type: 'info' }), 5000);
   };
 
   const resetForm = () => {
-    if (!window.confirm("Kosongkan borang sekarang?")) return;
-    setCandidates(Array(5).fill(null).map(emptyCandidate));
-    setHeader(prev => ({ ...prev, jenisUjian: JENIS_UJIAN_OPTIONS[0], tarikhMasa: '' }));
-    showToast("Borang telah dikosongkan");
+    setConfirmModal({
+      show: true,
+      title: "Kosongkan Borang",
+      message: "Adakah anda pasti? Semua maklumat markah yang sedang diisi akan dipadamkan sepenuhnya. Rekod di dalam arkib tidak akan terjejas.",
+      confirmText: "Kosongkan Sekarang",
+      variant: 'danger',
+      onConfirm: () => {
+        try {
+          showToast("Sistem sedang memproses pembersihan data...", "info");
+          
+          // Use distinct state updates with fresh objects
+          setCandidates([
+            emptyCandidate(), emptyCandidate(), emptyCandidate(), emptyCandidate(), emptyCandidate()
+          ]);
+
+          setHeader(prev => {
+            const h = {
+              ...INITIAL_HEADER,
+              pemeriksaNama: prev.pemeriksaNama,
+              pemeriksaJawatan: prev.pemeriksaJawatan,
+              penyemakNama: prev.penyemakNama,
+              penyemakJawatan: prev.penyemakJawatan,
+              pengesahNama: prev.pengesahNama,
+              pengesahJawatan: prev.pengesahJawatan,
+              tarikhMasa: ''
+            };
+            return h;
+          });
+
+          // Reset UI States
+          setConfirmingDelete(null);
+          setIsPdfReady(false);
+          setSearchModal({ show: false, targetIdx: null, term: '' });
+          
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          
+          // Delay the success toast slightly to ensure UX visibility
+          setTimeout(() => {
+            showToast("Borang telah bersih dan sedia digunakan semula", "success");
+          }, 300);
+
+        } catch (error) {
+          console.error("Critical Reset Error:", error);
+          showToast("Gagal mengosongkan borang secara automatik. Sila muat semula halaman.", "error");
+        } finally {
+          // Close modal last
+          setConfirmModal(prev => ({ ...prev, show: false }));
+        }
+      }
+    });
   };
 
   const saveRecord = async () => {
@@ -333,8 +412,8 @@ const App = () => {
     }
   };
 
-  const openSearch = (idx: number) => {
-    console.log("Search button clicked for index:", idx);
+  const openSearch = (idx: number, tingkatan?: string, kelas?: string) => {
+    console.log("Search button clicked for index:", idx, tingkatan, kelas);
     console.log("Loading state:", loadingStudentDb);
     console.log("Database size:", studentDb.length);
 
@@ -346,7 +425,7 @@ const App = () => {
       showToast("Gagal: Sila muat naik fail maklumat pelajar terlebih dahulu.");
       return;
     }
-    setSearchModal({ show: true, targetIdx: idx, term: '' });
+    setSearchModal({ show: true, targetIdx: idx, term: '', tingkatan, kelas });
   };
 
   const generatePDF = async () => {
@@ -469,56 +548,251 @@ const App = () => {
     const path = `artifacts/${appId}/public/data/student_database`;
     try {
       setIsSavingDb(true);
-      showToast("Sedang mengemaskini pangkalan data... Sila tunggu.");
+      showToast("Sedang menyelaraskan data...");
       
-      // Update local storage first for speed
-      localStorage.setItem('ubbm_student_db_cache', JSON.stringify(students));
-      
-      // 1. Delete old docs for this user (chunked)
-      const q = query(collection(db, path), where("userId", "==", user.uid));
-      const oldDocs = await getDocs(q);
-      
-      const deleteBatches = [];
-      let currentDeleteBatch = writeBatch(db);
-      let opCount = 0;
-      
-      oldDocs.forEach(d => {
-        currentDeleteBatch.delete(d.ref);
-        opCount++;
-        if (opCount === 450) {
-          deleteBatches.push(currentDeleteBatch.commit());
-          currentDeleteBatch = writeBatch(db);
-          opCount = 0;
-        }
+      // 1. Generate IDs and clean data
+      const processedWithIds = students.map(s => {
+        const docId = (s._docId) ? s._docId : 
+                     ((s.noMaktab && String(s.noMaktab).trim()) ? String(s.noMaktab).trim() : 
+                     doc(collection(db, path)).id);
+        return { ...s, _docId: docId };
       });
-      if (opCount > 0) deleteBatches.push(currentDeleteBatch.commit());
-      await Promise.all(deleteBatches);
 
-      // 2. Add new docs in chunks
+      // Update local storage first for speed
+      localStorage.setItem('ubbm_student_db_cache', JSON.stringify(processedWithIds));
+      setStudentDb(processedWithIds);
+      
+      // 2. Add/Update docs using batches
       const addBatches = [];
       let currentAddBatch = writeBatch(db);
-      opCount = 0;
+      let opCount = 0;
 
-      students.forEach(s => {
-        const newDocRef = doc(collection(db, path));
-        currentAddBatch.set(newDocRef, { ...s, userId: user.uid, updatedAt: new Date().toISOString() });
+      for (const s of processedWithIds) {
+        const docRef = doc(db, path, s._docId);
+        
+        currentAddBatch.set(docRef, { 
+          ...s, 
+          userId: user.uid, 
+          updatedAt: new Date().toISOString() 
+        });
+        
         opCount++;
         if (opCount === 450) {
           addBatches.push(currentAddBatch.commit());
           currentAddBatch = writeBatch(db);
           opCount = 0;
         }
-      });
+      }
       if (opCount > 0) addBatches.push(currentAddBatch.commit());
       
       await Promise.all(addBatches);
       setIsSavingDb(false);
-      showToast(`Pangkalan data (${students.length} pelajar) telah disimpan dengan selamat.`);
+      showToast(`Berjaya menyelaraskan ${students.length} rekod.`);
     } catch (err) {
       setIsSavingDb(false);
       console.error("Save Student DB Error:", err);
-      alert("Gagal menyimpan ke awan. Data hanya tersedia secara luar talian buat masa ini.");
+      showToast("Gagal menyelaraskan data sepenuhnya.");
       handleFirestoreError(err, OperationType.WRITE, path);
+    }
+  };
+
+  const deleteStudentRecord = async (student: any) => {
+    if (isSavingDb) {
+      showToast("Sistem sedang memproses data lain. Sila tunggu.", 'error');
+      return;
+    }
+    
+    const docId = student._docId || (student.noMaktab && String(student.noMaktab).trim());
+    
+    if (!docId) {
+      showToast("Ralat: Rekod ini tiada ID unik. Sila gunakan 'SET SEMULA DATA'.", 'error');
+      return;
+    }
+
+    const path = `artifacts/${appId}/public/data/student_database`;
+    try {
+      setIsSavingDb(true);
+      showToast(`Menghapus ${student.nama}...`, 'info');
+      
+      const docRef = doc(db, path, String(docId));
+      await deleteDoc(docRef);
+      
+      // Update local state
+      setStudentDb(prev => prev.filter(s => {
+        const sid = s._docId || s.noMaktab;
+        return String(sid) !== String(docId);
+      }));
+      
+      showToast(`Selesai: Rekod dipadam.`, 'success');
+    } catch (err: any) {
+      console.error("Delete Error details:", err);
+      showToast(`Kegagalan: ${err.message || 'Ralat teknikal'}`, 'error');
+    } finally {
+      setIsSavingDb(false);
+      setConfirmingDelete(null);
+    }
+  };
+
+  const deleteFilteredStudents = async (filteredList: any[]) => {
+    if (isSavingDb) {
+      showToast("Sistem sibuk. Sila tunggu.", 'error');
+      return;
+    }
+    if (filteredList.length === 0) return;
+
+    const listWithIds = filteredList.filter(s => s._docId || (s.noMaktab && String(s.noMaktab).trim()));
+
+    if (listWithIds.length === 0) {
+      showToast("Ralat: Data terpilih tiada ID yang boleh dipadam.", 'error');
+      return;
+    }
+
+    const path = `artifacts/${appId}/public/data/student_database`;
+    try {
+      setIsSavingDb(true);
+      showToast(`Memadam ${listWithIds.length} rekod...`, 'info');
+      
+      const batches = [];
+      let currentBatch = writeBatch(db);
+      let count = 0;
+      const deletedIds = new Set();
+      
+      for (const s of listWithIds) {
+        const docId = s._docId || s.noMaktab;
+        if (!docId) continue;
+        
+        currentBatch.delete(doc(db, path, String(docId)));
+        deletedIds.add(String(docId));
+        count++;
+        
+        if (count === 400) {
+          batches.push(currentBatch.commit());
+          currentBatch = writeBatch(db);
+          count = 0;
+        }
+      }
+      
+      if (count > 0) batches.push(currentBatch.commit());
+      await Promise.all(batches);
+      
+      // UI Update
+      setStudentDb(prev => prev.filter(s => {
+        const id = s._docId || s.noMaktab;
+        return !deletedIds.has(String(id));
+      }));
+      
+      showToast(`Berjaya: ${listWithIds.length} rekod dipadam.`, 'success');
+      setSearchModal({ ...searchModal, show: false });
+    } catch (err: any) {
+      console.error("Bulk Delete Error details:", err);
+      showToast(`Ralat: Gagal memadam data.`, 'error');
+    } finally {
+      setIsSavingDb(false);
+      setConfirmingDelete(null);
+    }
+  };
+
+  const cleanupRedundantData = async () => {
+    if (!user || isSavingDb) return;
+    if (!window.confirm("Sistem akan membuang rekod pendua secara kekal dari pangkalan data global. Teruskan?")) return;
+    
+    const path = `artifacts/${appId}/public/data/student_database`;
+    try {
+      setIsSavingDb(true);
+      showToast("Membersihkan data pendua...");
+      
+      const q = query(collection(db, path));
+      const snapshot = await getDocs(q);
+      
+      const seen = new Set();
+      const duplicates: any[] = [];
+      
+      snapshot.docs.forEach(d => {
+        const data = d.data();
+        const key = data.noMaktab || d.id;
+        if (seen.has(key)) {
+          duplicates.push(d.ref);
+        } else {
+          seen.add(key);
+        }
+      });
+      
+      if (duplicates.length === 0) {
+        showToast("Tiada data pendua ditemui.");
+        setIsSavingDb(false);
+        return;
+      }
+      
+      const deleteBatches = [];
+      let currentBatch = writeBatch(db);
+      let count = 0;
+      
+      for (const ref of duplicates) {
+        currentBatch.delete(ref);
+        count++;
+        if (count === 450) {
+          deleteBatches.push(currentBatch.commit());
+          currentBatch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) deleteBatches.push(currentBatch.commit());
+      
+      await Promise.all(deleteBatches);
+      showToast(`Berjaya membuang ${duplicates.length} rekod pendua.`);
+    } catch (err) {
+      console.error("Cleanup Error:", err);
+      showToast("Gagal membersihkan data.");
+    } finally {
+      setIsSavingDb(false);
+    }
+  };
+
+  const resetStudentDatabase = async () => {
+    if (!user || isSavingDb) return;
+    if (!window.confirm("PERINGATAN: Ini akan memadam SEMUA data pelajar secara kekal. Pastikan anda mempunyai salinan sandaran fail .csv anda. Teruskan?")) return;
+    
+    const path = `artifacts/${appId}/public/data/student_database`;
+    try {
+      setIsSavingDb(true);
+      showToast("Memadam semua data...");
+      
+      const q = query(collection(db, path));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        showToast("Pangkalan data sedia ada kosong.");
+        setIsSavingDb(false);
+        return;
+      }
+      
+      const deleteBatches = [];
+      let currentBatch = writeBatch(db);
+      let count = 0;
+      
+      for (const d of snapshot.docs) {
+        currentBatch.delete(d.ref);
+        count++;
+        if (count === 450) {
+          deleteBatches.push(currentBatch.commit());
+          currentBatch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) deleteBatches.push(currentBatch.commit());
+      
+      await Promise.all(deleteBatches);
+      
+      // Also clear local storage cache
+      localStorage.removeItem('ubbm_student_db_cache');
+      setStudentDb([]);
+      
+      showToast(`Berjaya memadam ${snapshot.docs.length} rekod. Sila muat naik fail yang betul.`);
+    } catch (err) {
+      console.error("Reset Error:", err);
+      showToast("Gagal memadam data.");
+    } finally {
+      setIsSavingDb(false);
     }
   };
 
@@ -545,7 +819,7 @@ const App = () => {
           
           setStudentDb(processed);
           saveStudentDbToFirestore(processed);
-          showToast(`${processed.length} pelajar dimuat naik`);
+          showToast(`${processed.length} pelajar dimuat naik (Sedang menyelaraskan...)`);
         } catch (err) { 
           console.error("Excel/CSV Parse Error:", err);
           alert("Ralat memproses fail."); 
@@ -574,7 +848,7 @@ const App = () => {
           
           setStudentDb(processed);
           saveStudentDbToFirestore(processed);
-          showToast(`${processed.length} pelajar dimuat naik`);
+          showToast(`${processed.length} pelajar dimuat naik (Sedang menyelaraskan...)`);
         } catch (err) { 
           console.error("PDF Parsing Error:", err);
           alert("Ralat memproses fail PDF."); 
@@ -586,8 +860,9 @@ const App = () => {
   };
 
   useEffect(() => {
-    setIsPdfReady(true);
-  }, []);
+    const hasData = candidates.some(c => c.nama.trim() !== '');
+    setIsPdfReady(hasData);
+  }, [candidates]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -597,22 +872,22 @@ const App = () => {
           // @ts-ignore
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
-          // Only sign in anonymously if there's no existing session
+          // Silent anonymous sign in to ensure system works immediately
           if (!auth.currentUser) {
             await signInAnonymously(auth);
           }
         }
       } catch (error: any) {
-        console.error("Auth error:", error);
-        if (error.code === 'auth/admin-restricted-operation') {
-          console.warn("Anonymous auth disabled. Please use Google Login.");
-        }
+        console.error("Silent Auth Error:", error);
       }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (currUser) => { 
       setUser(currUser); 
       setLoading(false); 
+      if (currUser) {
+        showToast("Sistem Sedia (Penyelarasan Awan Aktif)", "success");
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -634,11 +909,11 @@ const App = () => {
     const path = `artifacts/${appId}/public/data/ubbm_records`;
     const q = query(
       collection(db, path), 
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.uid)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      docs.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRecords(docs);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, path);
@@ -649,15 +924,25 @@ const App = () => {
   useEffect(() => {
     if (!user) return;
     const path = `artifacts/${appId}/public/data/student_database`;
-    const q = query(collection(db, path), where("userId", "==", user.uid));
+    // We removed the userId filter so all teachers can share the same student list
+    const q = query(collection(db, path));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log(`Student DB Sync: Received ${snapshot.docs.length} students from Firestore`);
-      const remoteData = snapshot.docs.map(doc => doc.data());
       
-      if (snapshot.docs.length > 0) {
-        setStudentDb(remoteData);
-        localStorage.setItem('ubbm_student_db_cache', JSON.stringify(remoteData));
-      }
+      // Client-side de-duplication to ensure UI is clean
+      const uniqueMap = new Map();
+      snapshot.docs.forEach(d => {
+        const data = d.data();
+        const key = data.noMaktab || d.id;
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, { ...data, _docId: d.id });
+        }
+      });
+      
+      const remoteData = Array.from(uniqueMap.values());
+      
+      setStudentDb(remoteData);
+      localStorage.setItem('ubbm_student_db_cache', JSON.stringify(remoteData));
       setLoadingStudentDb(false);
     }, (error) => {
       console.error("Student DB Sync Error:", error);
@@ -670,38 +955,85 @@ const App = () => {
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
       showToast("Log masuk berjaya");
-    } catch (error) {
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user') {
+        return; // Silent bypass for cancelled login
+      }
       console.error("Login Error:", error);
-      alert("Gagal log masuk dengan Google.");
+      showToast("Gagal log masuk: " + (error.message || "Ralat tidak diketahui"));
     }
+  };
+
+  const handleLogout = async () => {
+    setConfirmModal({
+      show: true,
+      title: "Log Keluar",
+      message: "Adakah anda pasti untuk keluar dari sistem? Fungsi penyelarasan awan akan dihentikan sementara.",
+      confirmText: "Log Keluar",
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          showToast("Sedang log keluar dari akaun Google...", "info");
+          await auth.signOut();
+          setUser(null);
+          showToast("Anda telah log keluar dengan selamat", "success");
+          window.location.reload();
+        } catch (error) {
+          console.error("Logout Error:", error);
+          showToast("Ralat teknikal semasa log keluar", "error");
+        } finally {
+          setConfirmModal(prev => ({ ...prev, show: false }));
+        }
+      }
+    });
   };
 
   if (loading) return <div className="h-screen flex items-center justify-center font-bold text-blue-900 uppercase">MEMULAKAN SISTEM...</div>;
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800">
-      {!user && (
-        <div className="fixed inset-0 z-[300] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-          <div className="bg-white p-10 rounded-3xl shadow-2xl border-2 border-blue-100 max-w-md w-full space-y-6">
-            <div className="w-20 h-20 bg-blue-900 rounded-2xl mx-auto flex items-center justify-center text-white shadow-xl">
-              <ShieldCheck size={40} />
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800 relative">
+      {/* Modal Pengesahan Global - Moved to top for visibility */}
+      {confirmModal.show && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform animate-in zoom-in duration-200 border border-slate-200">
+            <div className="p-8 text-center">
+              <div className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6 ${confirmModal.variant === 'danger' ? 'bg-red-100 text-red-600' : confirmModal.variant === 'warning' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                <Info size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-3 uppercase tracking-wider">{confirmModal.title}</h3>
+              <p className="text-slate-600 font-medium leading-relaxed mb-10 text-sm">{confirmModal.message}</p>
+              
+              <div className="flex gap-4">
+                <button 
+                  type="button"
+                  onClick={() => setConfirmModal(prev => ({ ...prev, show: false }))}
+                  className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold transition-all active:scale-95 shadow-sm border border-slate-200"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                  }}
+                  className={`flex-1 py-4 rounded-2xl font-bold transition-all active:scale-95 shadow-md ${
+                    confirmModal.variant === 'danger' ? 'bg-red-600 hover:bg-red-700 text-white' : 
+                    confirmModal.variant === 'warning' ? 'bg-orange-500 hover:bg-orange-600 text-white' : 
+                    'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {confirmModal.confirmText}
+                </button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-black text-blue-900 uppercase tracking-tight">Sila Log Masuk</h2>
-              <p className="text-slate-500 font-medium">Akses sistem memerlukan pengesahan identiti untuk keselamatan data.</p>
-            </div>
-            <button 
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 py-4 bg-blue-700 hover:bg-blue-800 text-white rounded-2xl font-black uppercase transition-all active:scale-95 shadow-lg"
-            >
-              Log Masuk Dengan Google
-            </button>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sistem Markah UBBM © 2026</p>
           </div>
         </div>
       )}
+
+
       <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx,.xls,.pdf,.csv" onChange={handleFileSelect} />
       
       {/* Modal Cari Calon */}
@@ -712,64 +1044,304 @@ const App = () => {
                     <h3 className="font-bold uppercase tracking-widest text-sm flex items-center gap-2"><Search size={18}/> Cari Calon (Baris {(searchModal.targetIdx || 0) + 1})</h3>
                     <button onClick={() => setSearchModal({show:false, targetIdx:null, term:''})}><X size={24}/></button>
                 </div>
-                <div className="p-4 border-b bg-slate-50 flex flex-col gap-2">
-                    <input autoFocus type="text" placeholder="Masukkan Nama, Homeroom (A-N) atau No Maktab..." className="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 font-bold" value={searchModal.term} onChange={(e) => setSearchModal({...searchModal, term: e.target.value})} />
-                    <div className="flex justify-between items-center px-1">
+                <div className="p-4 border-b bg-slate-50 flex flex-col gap-3">
+                    <div className="flex gap-2">
+                        <div className="flex-grow">
+                            <input 
+                              autoFocus 
+                              type="text" 
+                              placeholder="Cari Nama / No Maktab / Homeroom..." 
+                              className="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 font-bold shadow-sm" 
+                              value={searchModal.term} 
+                              onChange={(e) => setSearchModal({...searchModal, term: e.target.value})} 
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <div className="flex-grow flex gap-2">
+                          {searchModal.tingkatan && (
+                            <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-[10px] font-black border border-blue-200">
+                              TINGKATAN {searchModal.tingkatan}
+                            </div>
+                          )}
+                          {searchModal.kelas && (
+                            <div className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-200">
+                              KELAS {searchModal.kelas}
+                            </div>
+                          )}
+                          {!searchModal.tingkatan && !searchModal.kelas && (
+                            <div className="bg-slate-200 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black border border-slate-300">
+                              TIADA TAPISAN KELAS
+                            </div>
+                          )}
+                        </div>
+
+                        {searchModal.term && (
+                          <button 
+                            onClick={() => setSearchModal({...searchModal, term: ''})}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Padam Carian"
+                          >
+                            <X size={20}/>
+                          </button>
+                        )}
+                    </div>
+
+                    <div className="flex justify-between items-center px-1 pt-1 border-t border-slate-200">
                       <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
-                        Hasil Carian: {
+                        Padanan: {
                           [...studentDb].filter(s => {
-                            if (!searchModal.term) return true;
-                            const term = searchModal.term.toUpperCase();
-                            return (String(s.nama).includes(term)) || 
-                                   (String(s.noMaktab).includes(term)) || 
-                                   (String(s.homeroom).includes(term)) ||
-                                   (String(s.kelas).toUpperCase().includes(term));
+                            const sTing = String(s.tingkatan || "").trim();
+                            const sKelas = String(s.kelas || "").trim().toUpperCase();
+                            const matchTing = !searchModal.tingkatan || sTing === String(searchModal.tingkatan).trim();
+                            const matchKelas = !searchModal.kelas || sKelas === String(searchModal.kelas).trim().toUpperCase();
+                            if (!matchTing || !matchKelas) return false;
+                            
+                            if (!searchModal.term || !searchModal.term.trim()) return true;
+                            const term = searchModal.term.trim().toUpperCase();
+                            return (String(s.nama || "").toUpperCase().includes(term)) || 
+                                   (String(s.noMaktab || "").includes(term)) || 
+                                   (String(s.homeroom || "").toUpperCase().includes(term)) ||
+                                   (sKelas.includes(term));
                           }).length
                         } / {studentDb.length} Pelajar
                       </span>
                     </div>
                 </div>
                 <div className="flex-grow overflow-y-auto p-2">
-                    {[...studentDb].sort((a, b) => {
-                        // 1. Sort by Tingkatan (Tingkatan 4 before Tingkatan 5)
-                        const tingA = String(a.tingkatan || "");
-                        const tingB = String(b.tingkatan || "");
-                        if (tingA !== tingB) return tingA.localeCompare(tingB);
-                        
-                        // 2. Sort by Kelas (Alphabetical)
-                        const kelasA = String(a.kelas || "").toUpperCase();
-                        const kelasB = String(b.kelas || "").toUpperCase();
-                        if (kelasA !== kelasB) return kelasA.localeCompare(kelasB);
-                        
-                        // 3. Sort by Nama (Alphabetical)
-                        const namaA = String(a.nama || "").toUpperCase();
-                        const namaB = String(b.nama || "").toUpperCase();
-                        return namaA.localeCompare(namaB);
-                    }).filter(s => {
-                        if (!searchModal.term) return true;
-                        const term = searchModal.term.toUpperCase();
-                        return (String(s.nama).includes(term)) || 
-                               (String(s.noMaktab).includes(term)) || 
-                               (String(s.homeroom).includes(term)) ||
-                               (String(s.kelas).toUpperCase().includes(term));
-                    }).map((s, i) => (
-                        <div key={i} onClick={() => selectStudent(s)} className="p-3 border-b hover:bg-blue-50 cursor-pointer rounded-lg transition-all flex justify-between items-center text-left">
-                            <div>
-                                <div className="font-black text-sm text-blue-900">{s.nama}</div>
-                                <div className="text-[10px] text-slate-500 font-bold uppercase">NO.M: {s.noMaktab} | HR: {s.homeroom}</div>
-                            </div>
-                            <div className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-black">{s.tingkatan} {s.kelas}</div>
-                        </div>
-                    ))}
-                    {studentDb.length === 0 && <div className="text-center py-10 text-slate-400">Pangkalan data kosong. Sila muat naik fail Excel dahulu.</div>}
+                    {(() => {
+                      const filtered = [...studentDb].sort((a, b) => {
+                          const tingA = String(a.tingkatan || "");
+                          const tingB = String(b.tingkatan || "");
+                          if (tingA !== tingB) return tingA.localeCompare(tingB);
+                          const kelasA = String(a.kelas || "").toUpperCase();
+                          const kelasB = String(b.kelas || "").toUpperCase();
+                          if (kelasA !== kelasB) return kelasA.localeCompare(kelasB);
+                          const namaA = String(a.nama || "").toUpperCase();
+                          const namaB = String(b.nama || "").toUpperCase();
+                          return namaA.localeCompare(namaB);
+                      }).filter(s => {
+                          const sTing = String(s.tingkatan || "").trim();
+                          const sKelas = String(s.kelas || "").trim().toUpperCase();
+                          
+                          const matchTing = !searchModal.tingkatan || sTing === String(searchModal.tingkatan).trim();
+                          const matchKelas = !searchModal.kelas || sKelas === String(searchModal.kelas).trim().toUpperCase();
+                          
+                          // If filter is active but no match, we skip unless term is present? 
+                          // Actually user wants it to be filtered if they chose it.
+                          if (!matchTing || !matchKelas) return false;
+                          
+                          if (!searchModal.term || !searchModal.term.trim()) return true;
+                          const term = searchModal.term.trim().toUpperCase();
+                          return (String(s.nama || "").toUpperCase().includes(term)) || 
+                                 (String(s.noMaktab || "").includes(term)) || 
+                                 (String(s.homeroom || "").toUpperCase().includes(term)) ||
+                                 (sKelas.includes(term));
+                      });
+
+                      return (
+                        <>
+                          <div className="flex flex-col gap-2 p-2 mb-2 bg-slate-100 rounded-lg">
+                             <div className="flex justify-between items-center">
+                               <div className="text-[10px] font-bold text-slate-500 uppercase">JUMLAH: {filtered.length} / {studentDb.length}</div>
+                               {filtered.length > 0 && (searchModal.term || searchModal.tingkatan || searchModal.kelas) && (
+                                 <button 
+                                   type="button"
+                                   onClick={(e) => {
+                                     e.preventDefault();
+                                     e.stopPropagation();
+                                     if (confirmingDelete === 'bulk') {
+                                       deleteFilteredStudents(filtered);
+                                     } else {
+                                       setConfirmingDelete('bulk');
+                                     }
+                                   }}
+                                   disabled={isSavingDb}
+                                   className={`text-[10px] font-black px-4 py-2 rounded-lg transition-all uppercase flex items-center gap-2 shadow-md border-none cursor-pointer ${isSavingDb ? 'bg-slate-400 cursor-not-allowed text-white' : (confirmingDelete === 'bulk' ? 'bg-red-800 text-white animate-pulse' : 'bg-red-600 hover:bg-red-700 text-white active:scale-95')}`}
+                                 >
+                                   <Trash2 size={16}/> {isSavingDb ? 'MEMADAM...' : (confirmingDelete === 'bulk' ? 'SAHKAN PADAM SEMUA?' : `Hapus ${filtered.length} Rekod`)}
+                                 </button>
+                               )}
+                             </div>
+                             {confirmingDelete === 'bulk' && !isSavingDb && (
+                               <div className="flex justify-between items-center bg-red-50 p-2 rounded border border-red-200">
+                                 <span className="text-[9px] font-bold text-red-700 uppercase">Hapus {filtered.length} rekod secara kekal?</span>
+                                 <button onClick={() => setConfirmingDelete(null)} className="text-[9px] font-black text-slate-500 hover:underline">BATAL</button>
+                               </div>
+                             )}
+                          </div>
+                          {filtered.map((s, i) => {
+                            const sid = s._docId || s.noMaktab;
+                            const isConfirmingSelf = confirmingDelete === String(sid);
+                            
+                            return (
+                              <div key={i} className={`p-3 border-b hover:bg-blue-50 cursor-pointer rounded-lg transition-all flex justify-between items-center group ${isConfirmingSelf ? 'bg-red-50 border-red-200' : ''}`}>
+                                  <div onClick={() => selectStudent(s)} className="flex-grow text-left">
+                                      <div className="font-black text-sm text-blue-900 uppercase">{s.nama}</div>
+                                      <div className="text-[10px] text-slate-500 font-bold uppercase">NO.M: {s.noMaktab} | HR: {s.homeroom}</div>
+                                      <div className="text-[9px] bg-blue-100 text-blue-700 w-fit px-2 mt-1 rounded font-black">{s.tingkatan} {s.kelas}</div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {isConfirmingSelf && !isSavingDb ? (
+                                      <div className="flex items-center gap-2 pr-2 border-r border-red-200 mr-2">
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); deleteStudentRecord(s); }}
+                                          className="bg-red-600 text-white text-[9px] font-black px-3 py-1.5 rounded hover:bg-red-700 active:scale-95"
+                                        >
+                                          YA, PADAM
+                                        </button>
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setConfirmingDelete(null); }}
+                                          className="text-[9px] font-black text-slate-500 hover:underline"
+                                        >
+                                          BATAL
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button 
+                                        onClick={(e) => { 
+                                          e.preventDefault();
+                                          e.stopPropagation(); 
+                                          setConfirmingDelete(String(sid)); 
+                                        }}
+                                        disabled={isSavingDb}
+                                        className={`p-3 transition-all rounded-full border border-transparent ${isSavingDb ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 cursor-pointer active:scale-90'}`}
+                                        title="Padam rekod ini"
+                                      >
+                                        <Trash2 size={20}/>
+                                      </button>
+                                    )}
+                                  </div>
+                              </div>
+                            );
+                          })}
+                          {filtered.length === 0 && <div className="text-center py-10 text-slate-400">Pangkalan data kosong atau tiada padanan.</div>}
+                        </>
+                      );
+                    })()}
                 </div>
             </div>
         </div>
       )}
 
+      {showManual && (
+        <div className="fixed inset-0 z-[1100] bg-black/70 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in duration-300">
+            <div className="bg-blue-900 p-6 text-white flex justify-between items-center bg-gradient-to-r from-blue-900 to-blue-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-500 rounded-lg text-blue-900">
+                  <BookOpen size={24} />
+                </div>
+                <div>
+                  <h3 className="font-black uppercase tracking-tighter text-xl">Manual Pengguna</h3>
+                  <p className="text-[10px] font-bold text-blue-200">LANGKAH PENGGUNAAN SISTEM UBBM</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowManual(false)} 
+                className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-8 space-y-8 bg-slate-50">
+              {/* Step 0: Login */}
+              <div className="flex gap-4 relative">
+                <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center font-black text-lg border-2 border-yellow-200 z-10">
+                  <UserCheck size={20} />
+                </div>
+                <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-blue-100 -z-0"></div>
+                <div className="space-y-2 pb-6">
+                  <h4 className="font-black text-blue-900 uppercase text-sm tracking-wide">Log Masuk Sistem</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Guru perlu <span className="font-bold text-blue-700">Log Masuk menggunakan akaun Google</span> untuk mengaktifkan fungsi penyelarasan (Sync). Ini membolehkan data diakses dari mana-mana peranti.
+                  </p>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-start gap-3">
+                    <ShieldCheck className="text-blue-500 shrink-0" size={16} />
+                    <span className="text-[10px] text-slate-500">Ikon <span className="font-black text-blue-700">[LOG MASUK]</span> terletak di bahagian atas kanan skrin.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 1 */}
+              <div className="flex gap-4 relative">
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-black text-lg border-2 border-blue-200 z-10">1</div>
+                <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-blue-100 -z-0"></div>
+                <div className="space-y-2 pb-6">
+                  <h4 className="font-black text-blue-900 uppercase text-sm tracking-wide">Penyediaan Database Pelajar</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Sistem memerlukan data pelajar untuk berfungsi. Anda boleh muat naik fail <span className="font-bold text-blue-700">Excel / PDF / CSV</span> yang mengandungi senarai pelajar.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="flex gap-4 relative">
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-black text-lg border-2 border-blue-200 z-10">2</div>
+                <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-blue-100 -z-0"></div>
+                <div className="space-y-2 pb-6">
+                  <h4 className="font-black text-blue-900 uppercase text-sm tracking-wide">Pemilihan Calon Ujian</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Klik pada butang <Search size={14} className="inline"/> <span className="font-bold text-blue-700">Carian</span> pada kolum nama. Gunakan tapisan Tingkatan/Kelas yang telah ditetapkan secara automatik.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="flex gap-4 relative">
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-black text-lg border-2 border-blue-200 z-10">3</div>
+                <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-blue-100 -z-0"></div>
+                <div className="space-y-2 pb-6">
+                  <h4 className="font-black text-blue-900 uppercase text-sm tracking-wide">Pemasukan Markah</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Masukkan markah bagi setiap kriteria. Markah <span className="font-bold text-blue-700">Individu</span> (Tatabahasa, Sebutan, Kefasihan, Idea) dan <span className="font-bold text-emerald-700">Holistik</span> (Grup).
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-black text-lg border-2 border-emerald-200 z-10">4</div>
+                <div className="space-y-2">
+                  <h4 className="font-black text-emerald-900 uppercase text-sm tracking-wide">Penyimpanan & Cetakan Data</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Klik <span className="font-bold text-blue-700">Simpan Rekod</span> untuk menghantar data ke <span className="font-bold text-blue-700">Cloud Database (Firestore)</span>. 
+                  </p>
+                  <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex items-start gap-3 mt-2">
+                    <History className="text-emerald-500 shrink-0" size={16} />
+                    <span className="text-[10px] text-emerald-700 font-bold leading-tight">
+                      Data yang disimpan selamat di awan & boleh dilihat semula melalui menu [SEJARAH].
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="p-4 bg-slate-100 text-center border-t border-slate-200">
+               <button 
+                 onClick={() => setShowManual(false)}
+                 className="bg-blue-900 text-white font-black px-10 py-3 rounded-2xl hover:bg-blue-800 transition-all active:scale-95 shadow-lg uppercase text-xs"
+               >
+                 Faham, Tutup Manual
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notification.show && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border-2 border-emerald-400 animate-bounce">
-             <CheckCircle2 size={24} /> <span className="font-black uppercase tracking-widest text-sm">{String(notification.message)}</span>
+        <div 
+          className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border-2 transition-all duration-300 transform translate-y-0 opacity-100 ${
+            notification.type === 'success' ? 'bg-emerald-600 border-emerald-400' : 
+            notification.type === 'error' ? 'bg-red-600 border-red-400' : 
+            'bg-blue-600 border-blue-400'
+          }`}
+        >
+             {notification.type === 'success' ? <CheckCircle2 size={24} /> : notification.type === 'error' ? <X size={24} /> : <FileText size={24} />}
+             <span className="font-black uppercase tracking-widest text-sm">{String(notification.message)}</span>
         </div>
       )}
 
@@ -779,11 +1351,72 @@ const App = () => {
             <div className="bg-blue-900 p-6 text-white text-center border-b-4 border-yellow-500 relative">
               <h1 className="text-2xl font-black uppercase tracking-widest">Maktab Rendah Sains Mara</h1>
               <h2 className="text-lg font-bold mt-1 italic underline underline-offset-8">Borang Markah Ujian Bertutur Bahasa Melayu (UBBM)</h2>
-              <div className="absolute top-2 right-2 flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${isSavingDb || loadingStudentDb ? 'bg-yellow-400 animate-pulse' : (studentDb.length > 0 ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-red-400')}`}></div>
-                <span className="text-[10px] font-black uppercase tracking-tighter text-blue-100">
-                  {isSavingDb ? 'Saving...' : (loadingStudentDb ? 'Syncing...' : (studentDb.length > 0 ? `${studentDb.length} Pelajar` : 'No DB'))}
-                </span>
+              <div className="absolute top-2 right-2 flex flex-col items-end gap-2">
+                <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${isSavingDb || loadingStudentDb ? 'bg-yellow-400 animate-pulse' : (studentDb.length > 0 ? 'bg-emerald-400' : 'bg-red-400')}`}></div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-blue-200">
+                      {isSavingDb ? 'MENYIMPAN...' : (loadingStudentDb ? 'MENYEMAK...' : (studentDb.length > 0 ? `${studentDb.length} PELAJAR` : 'TIADA DATABASE'))}
+                    </span>
+                   {studentDb.length > 0 && !loadingStudentDb && (
+                     <div className="flex gap-1 ml-1">
+                       <button 
+                          onClick={cleanupRedundantData}
+                          className="p-1 bg-white/5 hover:bg-red-500/20 text-[8px] text-white/30 hover:text-red-300 border border-white/10 rounded transition-all italic"
+                          title="Klik untuk buang data pendua dari pangkalan data"
+                       >
+                          [BERSIH PENDUA]
+                       </button>
+                       <button 
+                          onClick={resetStudentDatabase}
+                          className="p-1 bg-white/5 hover:bg-red-500/20 text-[8px] text-white/30 hover:text-red-500 border border-white/10 rounded transition-all italic"
+                          title="PADAM SEMUA: Gunakan ini jika anda tersalah muat naik fail"
+                       >
+                          [SET SEMULA DATA]
+                       </button>
+                     </div>
+                   )}
+                </div>
+                {user && (
+                  <div className="flex flex-col items-end gap-1">
+                    {user.isAnonymous ? (
+                      <button 
+                        onClick={handleGoogleLogin}
+                        className="text-[9px] font-black bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded shadow-sm transition-all flex items-center gap-1 uppercase animate-bounce"
+                      >
+                        <Upload size={10} /> Aktifkan Penyelarasan (Sync)
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 bg-emerald-900/40 px-3 py-1.5 rounded-full border border-emerald-400/30 shadow-inner">
+                        <span className="text-[10px] text-emerald-300 font-black uppercase truncate max-w-[150px] tracking-tight">
+                          {user.email || 'Guru Aktif'}
+                        </span>
+                        <button 
+                          onClick={handleLogout}
+                          className="bg-red-500/30 hover:bg-red-600 text-white p-1.5 rounded-full transition-all active:scale-90 shadow-md border border-red-400/50"
+                          title="Log Keluar"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex gap-1.5 mt-1">
+                      <button 
+                        onClick={() => setShowManual(true)}
+                        className="bg-yellow-500 hover:bg-yellow-400 text-blue-900 p-1.5 rounded-full shadow-md transition-all hover:rotate-12 border border-yellow-300 active:scale-90"
+                        title="Buka Manual Pengguna"
+                      >
+                        <BookOpen size={12} />
+                      </button>
+                      <button 
+                        onClick={() => document.getElementById('arkib-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        className="bg-indigo-500 hover:bg-indigo-400 text-white p-1.5 rounded-full shadow-md transition-all hover:-rotate-12 border border-indigo-300 active:scale-90"
+                        title="Lompat ke Arkib Rekod"
+                      >
+                        <History size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -837,20 +1470,73 @@ const App = () => {
                         <td className="border-x border-slate-300 p-3 font-black text-slate-500">{idx + 1}</td>
                         <td className="border-x border-slate-300 p-3 text-left space-y-2">
                           <div className="flex gap-2 items-center">
-                            <input placeholder="NAMA PENUH" className="flex-grow text-sm font-black p-1 border-b uppercase outline-none focus:border-blue-500 bg-transparent" value={c.nama} onChange={(e) => { const n = [...candidates]; n[idx].nama = e.target.value.toUpperCase(); setCandidates(n); }} />
-                            <button type="button" onClick={(e) => { e.preventDefault(); openSearch(idx); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded-lg relative transition-all active:scale-95 shadow-sm border border-blue-50">
+                            <input 
+                                placeholder="NAMA PENUH" 
+                                className="flex-grow text-sm font-black p-1 border-b uppercase outline-none focus:border-blue-500 bg-transparent" 
+                                value={c.nama} 
+                                onChange={(e) => { 
+                                  const n = [...candidates]; 
+                                  n[idx] = { ...n[idx], nama: e.target.value.toUpperCase() }; 
+                                  setCandidates(n); 
+                                }} 
+                              />
+                            <button type="button" onClick={(e) => { e.preventDefault(); openSearch(idx, c.tingkatan, c.kelas); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded-lg relative transition-all active:scale-95 shadow-sm border border-blue-50">
                               <Search size={20}/>
                               {studentDb.length > 0 && <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white shadow-sm"></div>}
                             </button>
                           </div>
                           <div className="flex gap-2">
-                            <input placeholder="HR (A-N)" className="w-1/2 text-[11px] p-1.5 border rounded bg-slate-50 font-bold" value={c.homeroom} onChange={(e) => { const n = [...candidates]; n[idx].homeroom = e.target.value.toUpperCase().slice(0,1); setCandidates(n); }} />
-                            <input placeholder="NO. MAKTAB" className="w-1/2 text-[11px] p-1.5 border rounded bg-slate-50" value={c.noMaktab} onChange={(e) => { const n = [...candidates]; n[idx].noMaktab = e.target.value; setCandidates(n); }} />
+                            <input 
+                              placeholder="HR (A-N)" 
+                              className="w-1/2 text-[11px] p-1.5 border rounded bg-slate-50 font-bold" 
+                              value={c.homeroom} 
+                              onChange={(e) => { 
+                                const n = [...candidates]; 
+                                n[idx] = { ...n[idx], homeroom: e.target.value.toUpperCase().slice(0,1) }; 
+                                setCandidates(n); 
+                              }} 
+                            />
+                            <input 
+                              placeholder="NO. MAKTAB" 
+                              className="w-1/2 text-[11px] p-1.5 border rounded bg-slate-50" 
+                              value={c.noMaktab} 
+                              onChange={(e) => { 
+                                const n = [...candidates]; 
+                                n[idx] = { ...n[idx], noMaktab: e.target.value }; 
+                                setCandidates(n); 
+                              }} 
+                            />
                           </div>
                         </td>
-                        <td className="border-x border-slate-300 p-2 space-y-2">
-                            <select className="w-full p-1.5 border rounded font-bold text-xs" value={c.tingkatan} onChange={(e) => { const n = [...candidates]; n[idx].tingkatan = e.target.value; setCandidates(n); }}>{TINGKATAN_OPTIONS.map(opt => <option key={opt} value={opt}>TING {opt}</option>)}</select>
-                            <select className="w-full p-1.5 border rounded font-bold text-xs" value={c.kelas} onChange={(e) => { const n = [...candidates]; n[idx].kelas = e.target.value; setCandidates(n); }}>{KELAS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
+                        <td className="border-x border-slate-300 p-2">
+                            <div className="space-y-1">
+                                <select 
+                                  className="w-full p-1 border rounded font-bold text-[10px] cursor-pointer hover:bg-blue-50" 
+                                  value={c.tingkatan} 
+                                  onChange={(e) => { 
+                                    const val = e.target.value;
+                                    const n = [...candidates]; 
+                                    n[idx] = { ...n[idx], tingkatan: val }; 
+                                    setCandidates(n); 
+                                    if(studentDb.length > 0) openSearch(idx, val, c.kelas);
+                                  }}
+                                >
+                                  {TINGKATAN_OPTIONS.map(opt => <option key={opt} value={opt}>TING {opt}</option>)}
+                                </select>
+                                <select 
+                                  className="w-full p-1 border rounded font-bold text-[10px] cursor-pointer hover:bg-blue-50" 
+                                  value={c.kelas} 
+                                  onChange={(e) => { 
+                                    const val = e.target.value;
+                                    const n = [...candidates]; 
+                                    n[idx] = { ...n[idx], kelas: val }; 
+                                    setCandidates(n); 
+                                    if(studentDb.length > 0) openSearch(idx, c.tingkatan, val);
+                                  }}
+                                >
+                                  {KELAS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                            </div>
                         </td>
                         <td className="border-x border-slate-300 p-1"><input type="number" className="w-full text-center p-2 font-black text-blue-800 text-lg outline-none bg-transparent" value={c.analitik.tatabahasa} onChange={(e) => handleAnalitikChange(idx, 'tatabahasa', e.target.value)} /></td>
                         <td className="border-x border-slate-300 p-1"><input type="number" className="w-full text-center p-2 font-black text-blue-800 text-lg outline-none bg-transparent" value={c.analitik.sebutan} onChange={(e) => handleAnalitikChange(idx, 'sebutan', e.target.value)} /></td>
@@ -905,9 +1591,10 @@ const App = () => {
                   <ListChecks size={20}/> Jana Markah Induk
                 </button>
                 <button 
+                  type="button"
                   onClick={resetForm} 
                   disabled={isSavingRecord || isGeneratingPdf || isSavingDb}
-                  className="px-8 py-3 bg-slate-200 text-slate-700 rounded-xl font-black uppercase hover:bg-slate-300 active:scale-95 transition-all disabled:opacity-50"
+                  className="px-8 py-3 bg-red-50 text-red-700 border-2 border-red-100 rounded-xl font-black uppercase hover:bg-red-600 hover:text-white active:scale-95 transition-all disabled:opacity-50 shadow-sm"
                 >
                   Reset Borang
                 </button>
@@ -915,7 +1602,7 @@ const App = () => {
             </div>
           </div>
           
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden text-left">
+          <div id="arkib-section" className="bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden text-left">
             <div className="bg-slate-900 p-6 text-white flex justify-between items-center border-b-4 border-blue-600">
                <div className="flex items-center gap-4"><History size={24} className="text-yellow-500" /><h3 className="font-black uppercase tracking-[0.2em] text-lg">Arkib Senarai Simpanan Rekod</h3></div>
                <span className="bg-blue-600 px-6 py-2 rounded-full text-xs font-black">{records.length} REKOD</span>
@@ -926,16 +1613,36 @@ const App = () => {
                   <tr><th className="px-6 py-4">Tarikh / Masa Simpan</th><th className="px-6 py-4">Pemeriksa</th><th className="px-6 py-4 text-center">Tindakan</th></tr>
                 </thead>
                 <tbody className="divide-y">
-                  {records.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50/50 group transition-all">
-                      <td className="px-6 py-4"><div className="font-black text-blue-700">{String(rec.header?.tarikhSimpan || "")}</div><div className="text-[10px] text-slate-400 font-bold">{String(rec.header?.masaSimpan || "")}</div></td>
-                      <td className="px-6 py-4 font-bold text-slate-800 uppercase text-xs">{String(rec.header?.pemeriksaNama || '---')}</td>
-                      <td className="px-6 py-4 flex items-center justify-center gap-3">
-                        <button onClick={() => loadRecord(rec)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"><FileText size={18}/></button>
-                        <button onClick={() => deleteRecord(rec.id)} className="p-2 bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18}/></button>
+                  {records.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-6 py-10 text-center text-slate-400 font-bold uppercase tracking-widest">
+                        Tiada rekod tersimpan
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    records.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-50/50 group transition-all">
+                        <td className="px-6 py-4"><div className="font-black text-blue-700">{String(rec.header?.tarikhSimpan || "")}</div><div className="text-[10px] text-slate-400 font-bold">{String(rec.header?.masaSimpan || "")}</div></td>
+                        <td className="px-6 py-4 font-bold text-slate-800 uppercase text-xs">{String(rec.header?.pemeriksaNama || '---')}</td>
+                        <td className="px-6 py-4 flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => loadRecord(rec)} 
+                            title="Papar Semula"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black uppercase"
+                          >
+                            <Eye size={14}/> PAPAR SEMULA
+                          </button>
+                          <button 
+                            onClick={() => deleteRecord(rec.id)} 
+                            title="Padam Rekod"
+                            className="p-1.5 bg-red-50 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                          >
+                            <Trash2 size={14}/>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
